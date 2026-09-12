@@ -40,15 +40,17 @@ edu-notes/线性代数/
 插件是一个标准的 DSH 组合包（`dsh.bundle` + `cordis.patch.yml`）。`lib/` 是构建产物并已随仓库提交，因此**不需要授权任何构建脚本**。
 
 ```sh
-# 1) 从 git 安装（推荐）
-dsh plugin --profile web add github:1Vewton/dsh-edu
+# 1) 从 npm 安装（有 release 之后可用）
+dsh plugin --profile web add dsh-edu-mode
 
-# 或者从本仓库打包安装
-pnpm pack                                  # 得到 dsh-edu-mode-0.1.0.tgz
+# 2) 从 GitHub Release 下载的 tarball
 dsh plugin --profile web add ./dsh-edu-mode-0.1.0.tgz
+
+# 3) 直接装 git 仓库
+dsh plugin --profile web add github:1Vewton/dsh-edu
 ```
 
-> **注意安装方式。** 请用 tarball 或 git 安装（安装到 profile 的 `node_modules` 里的是一份真实目录）。不要用 `dsh plugin add <目录路径>`：那是 pnpm 的 `link:`，Node 会把它解析到源目录的真实路径，于是插件的 `@deepseek-ai/*` 导入会命中源码仓库自己的 `node_modules`，从而加载**第二份 cordis / dsh-tools 实例**，DSH 就无法把它识别成插件了。DSH 源码检出内开发（`pnpm dsh` + `--patch`）不受影响。
+> **注意安装方式。** 请用 npm / tarball / git 安装（安装到 profile 的 `node_modules` 里的是一份真实目录）。不要用 `dsh plugin add <目录路径>`：那是 pnpm 的 `link:`，Node 会把它解析到源目录的真实路径，于是插件的 `@deepseek-ai/*` 导入会命中源码仓库自己的 `node_modules`，从而加载**第二份 cordis / dsh-tools 实例**，DSH 就无法把它识别成插件了。DSH 源码检出内开发（`pnpm dsh` + `--patch`）不受影响。
 
 用源码检出运行时，把上面的 `dsh` 换成 `pnpm dsh`。验证层已生效（不启动服务）：
 
@@ -93,6 +95,29 @@ dsh --profile web --dump-config     # 应能看到 "# == dsh-edu-mode" 这一段
 之后模型会按教学协议走：先检索 MIT 18.06 / 教材等来源 → 讲清一个模块 → 写笔记 → 出题 → 根据错题回炉。你也可以随时插话：「这块再讲一遍」「出难一点的题」「跳过这节」。
 
 状态存在会话日志里（`edu/mode` 事件，最后一个生效），所以会话恢复、分叉都会自动带上模式和当前课程；课程进度则落在工作区的课程文件里，跨会话可用。
+
+## 发布
+
+发布由 GitHub Actions 完成（`.github/workflows/release.yml`）：推一个版本 tag 就会构建、测试、发 npm，并创建带 tarball 附件的 GitHub Release。
+
+```sh
+# 1) 改版本号并提交
+npm version patch --no-git-tag-version     # 或手改 package.json
+pnpm build && pnpm test                    # 确保 lib/ 与 src/ 一致
+git commit -am "chore: release v0.1.1"
+git push
+
+# 2) 打 tag 触发发布
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+**一次性配置**：在 npm 生成一个 **Automation** token（npmjs.com → Access Tokens），加到仓库 Settings → Secrets and variables → Actions，名字用 `NPM_TOKEN`。没有这个 secret 时 workflow 会在发布步骤明确报错，不会静默跳过。
+
+workflow 会拦住这些情况：tag 与 `package.json` 版本不一致、提交的 `lib/` 与 `src/` 不一致（防止发出去的构建产物是旧的）、单元测试失败、该版本已经在 npm 上存在。发布走 `npm publish --access public --provenance`，所以在 npm 页面能看到该包由这次 GitHub Actions 运行构建的出处证明，GitHub Release 上也会附上同一个 tarball。
+
+也可在 Actions 页面手动 dispatch：默认 `dry_run = true`，只跑构建/测试/打包，不发版。
+
+> 之后可选升级到 npm 的[可信发布（OIDC）](https://docs.npmjs.com/trusted-publishers/)：包在 npm 上存在后，在包的 Settings → Trusted publishing 里填 `1Vewton` / `dsh-edu` / `release.yml`，之后就能删掉 `NPM_TOKEN`（workflow 已经带了 `id-token: write`）。首次发布仍需要 token，因为可信发布只能在包已存在时配置。
 
 ## 开发
 

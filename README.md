@@ -40,15 +40,17 @@ Course names are slugified (CJK preserved, path separators removed), so `/edu �
 The plugin is a standard DSH bundle (`dsh.bundle` + `cordis.patch.yml`). The built `lib/` is committed, so **no build-script permission is needed**.
 
 ```sh
-# 1) from git (recommended)
-dsh plugin --profile web add github:1Vewton/dsh-edu
+# 1) from npm, once a release exists
+dsh plugin --profile web add dsh-edu-mode
 
-# or from a checkout of this repo
-pnpm pack                                  # produces dsh-edu-mode-0.1.0.tgz
+# 2) from the tarball attached to a GitHub Release
 dsh plugin --profile web add ./dsh-edu-mode-0.1.0.tgz
+
+# 3) straight from git
+dsh plugin --profile web add github:1Vewton/dsh-edu
 ```
 
-> **How you install matters.** Use a tarball or a git install: those unpack a real directory into the profile's `node_modules`. Do *not* use `dsh plugin add <directory>` — that is pnpm's `link:`, and Node resolves the symlink to the source directory, so the plugin's `@deepseek-ai/*` imports bind to the source checkout's own `node_modules` and load a **second copy of cordis / dsh-tools**, which the harness cannot recognise as a plugin. Developing inside a DSH source checkout (`pnpm dsh` + `--patch`) is unaffected.
+> **How you install matters.** Use npm, a tarball or a git install: those unpack a real directory into the profile's `node_modules`. Do *not* use `dsh plugin add <directory>` — that is pnpm's `link:`, and Node resolves the symlink to the source directory, so the plugin's `@deepseek-ai/*` imports bind to the source checkout's own `node_modules` and load a **second copy of cordis / dsh-tools**, which the harness cannot recognise as a plugin. Developing inside a DSH source checkout (`pnpm dsh` + `--patch`) is unaffected.
 
 When running from a source checkout, replace `dsh` with `pnpm dsh`. Verify the layer without starting a server:
 
@@ -93,6 +95,29 @@ A typical opener:
 After that the protocol drives the session: gather sources → teach one module → write the notes → quiz → re-teach whatever the quiz exposed. You can interrupt at any point ("explain that again", "harder questions", "skip this section").
 
 Mode state lives in the session log (the `edu/mode` event, last one wins), so resuming or forking a session restores the mode and its course; course progress lives in the workspace files and is therefore also available across sessions.
+
+## Releasing
+
+Releases run on GitHub Actions (`.github/workflows/release.yml`): pushing a version tag builds, tests, publishes to npm, and creates a GitHub Release with the packed tarball attached.
+
+```sh
+# 1) bump and commit
+npm version patch --no-git-tag-version     # or edit package.json
+pnpm build && pnpm test                    # keeps lib/ in step with src/
+git commit -am "chore: release v0.1.1"
+git push
+
+# 2) tag to publish
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+**One-time setup:** create an npm **Automation** token (npmjs.com → Access Tokens) and add it as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions). Without it the workflow fails loudly at the publish step instead of skipping silently.
+
+The workflow refuses to release: a tag that disagrees with the `package.json` version, a committed `lib/` that no longer matches `src/` (so the published build can never be stale), failing unit tests, or a version already on npm. It publishes with `npm publish --access public --provenance`, so the npm page carries a provenance attestation naming this workflow run as the build, and the GitHub Release carries the same tarball.
+
+Manual dispatches from the Actions tab default to `dry_run = true`, which builds, tests and packs without publishing.
+
+> Later, you can move to npm [trusted publishing (OIDC)](https://docs.npmjs.com/trusted-publishers/): once the package exists on npm, add a trusted publisher for `1Vewton` / `dsh-edu` / `release.yml` in the package's Settings → Trusted publishing, then delete `NPM_TOKEN` (the workflow already requests `id-token: write`). The first publish still needs a token, because trusted publishing can only be configured for a package that already exists.
 
 ## Development
 

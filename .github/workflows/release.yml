@@ -1,0 +1,144 @@
+# Release workflow: publish this bundle to npm and cut a GitHub Release.
+#
+# Triggers:
+#   - push of a version tag: `git tag v0.1.0 && git push origin v0.1.0`
+#   - manual dispatch, which defaults to a dry run (build, test and pack only)
+#
+# What ships is the committed `lib/` output, so the workflow refuses to release
+# a tree whose committed build is stale. Publishing authenticates with the
+# `NPM_TOKEN` repository secret and attaches a provenance attestation; see the
+# README's "Releasing" section for the one-time secret setup and for switching
+# to npm trusted publishing (OIDC) once the package exists on npm.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build, test and pack without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.7.0'
+  PACKAGE_NAME: 'dsh-edu-mode'
+
+jobs:
+  release:
+    name: Publish to npm
+    runs-on: ubuntu-24.04
+    permissions:
+      # Create the GitHub Release for this tag.
+      contents: write
+      # Sign the provenance attestation npm publishes with the package.
+      id-token: write
+    steps:
+      # The default shallow clone is enough: nothing here reads git history.
+      # persist-credentials stays off; the release step authenticates with the
+      # workflow token passed explicitly.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # pnpm is installed outside the workspace (`dest`), so the checkout it
+      # operates on contains only what the repository tracks.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+          # Never cache a release build's dependency tree.
+          package-manager-cache: false
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      # `lib/` is committed so that installing the bundle needs no build-script
+      # consent from the user. That only works while it matches `src/`, so a
+      # stale build is a release blocker rather than a silently shipped bug.
+      - name: Build and verify the committed lib/ is current
+        run: |
+          pnpm build
+          if ! git diff --quiet -- lib; then
+            echo "::error::lib/ does not match src/ — run 'pnpm build' and commit lib/"
+            git diff --stat -- lib
+            exit 1
+          fi
+
+      - name: Test
+        run: pnpm test
+
+      - name: Check the release version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_EVENT_NAME}" = 'push' ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::tag v$tag does not match package.json version $version"
+              exit 1
+            fi
+          fi
+          if npm view "${PACKAGE_NAME}@${version}" version >/dev/null 2>&1; then
+            echo "::error::${PACKAGE_NAME}@${version} is already published"
+            exit 1
+          fi
+          echo "Releasing ${PACKAGE_NAME}@${version}"
+
+      - name: Publish
+        if: github.event_name == 'push' || inputs.dry_run == false
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::error::the NPM_TOKEN repository secret is missing — add an npm automation token under Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          npm publish --access public --provenance
+
+      - name: Pack the tarball
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+
+      - name: Create the GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${PACKAGE_NAME} v${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            dist/*.tgz
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${PACKAGE_NAME}@${{ steps.version.outputs.version }}"
+            echo
+            if [ "${{ github.event_name }}" = 'push' ]; then
+              echo "Published to npm and released on GitHub."
+            else
+              echo "Dry run: nothing was published. Re-dispatch with \`dry_run\` off, or push a \`v*\` tag."
+            fi
+            echo
+            echo '```'
+            npm pack --dry-run 2>&1 | sed -n '/Tarball Contents/,/total files/p'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
