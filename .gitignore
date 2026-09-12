@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 .npm-cache/
 dist/
+.test-tmp-*/
 *.tgz
 *.log
 

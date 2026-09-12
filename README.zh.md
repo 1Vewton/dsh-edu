@@ -123,9 +123,25 @@ workflow 会拦住这些情况：tag 与 `package.json` 版本不一致、提交
 
 ```sh
 pnpm install
-pnpm build      # src/*.ts -> lib/*.js（lib/ 已提交，改了要重新 build 并重新打包）
-pnpm test       # 35 个单元测试：判分、路径、课程文件渲染、模式状态折叠、配置校验
+pnpm check      # = pnpm build + pnpm test（改完 src 用这个，别只跑 test）
+pnpm test       # 108 个测试，约 0.3 秒（测的是 lib/，也就是安装后真正被加载的产物）
 ```
+
+测试跑的是 `lib/` 而不是 `src/`，这正是关键：安装到 profile 里被加载的就是 `lib/`，所以测试要么先 `pnpm build`（用 `pnpm check`），要么测的就是旧产物。
+
+测试文件与它们锁定的行为：
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/paths.test.js` | 课程名安全化、课程文件布局、markdown 渲染、模块勾选/解析 |
+| `tests/quiz.test.js` | 判分规则：单选/多选/开放题/未作答、得分与通过线、报告渲染 |
+| `tests/store.test.js` | 课程文件读写：相对路径约束、工作区解析、沙箱策略、`fs/observed`、追加语义 |
+| `tests/tools.test.js` | 三个工具的真实行为：大纲、进度、笔记、测验记录，以及所有降级路径 |
+| `tests/plugin.test.js` | 真实 cordis `Context` 上的装配：服务、提示段、`/edu` 命令、模式状态机、会话日志契约 |
+| `tests/bundle.test.js` | 组合包契约：patch 行、`files`、入口、以及「所有运行时裸导入必须是 peer」 |
+| `tests/mode.test.js` | 配置校验与 `edu/mode` 折叠 |
+
+CI（`.github/workflows/ci.yml`）在 ubuntu 与 windows 上、Node 22 与 24 上跑同一套：`pnpm install --frozen-lockfile` → `pnpm build` 并校验提交的 `lib/` 与 `src/` 一致 → `pnpm test`。Windows 那一档不是摆设：插件要解析工作区相对路径并写课程文件，两个平台都跑一遍才放心。`.gitattributes` 把文本统一成 LF，好让 `lib/` 的对比在哪个平台都成立。
 
 源码结构：
 
@@ -136,6 +152,7 @@ src/course.ts  edu_course / edu_notes 工具
 src/quiz.ts    判分逻辑（纯函数）+ edu_quiz 工具
 src/store.ts   课程文件读写（走 ctx.fs，受沙箱约束）
 src/paths.ts   纯函数：课程名安全化、文件布局、markdown 渲染
+tests/         测试与 tests/helpers.mjs（临时工作区、假 fs/会话/工具注册表）
 ```
 
 改完代码后，profile 里装的是一份拷贝，必须重新 `remove` + `add` 才会更新。

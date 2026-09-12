@@ -135,7 +135,7 @@ export function renderSyllabus(input: SyllabusInput): string {
     '',
     ...(input.modules.length === 0
       ? ['_No modules yet._']
-      : input.modules.map(module => moduleLine(module, false))),
+      : input.modules.map(module => moduleLine(module, module.done === true))),
     '',
   ]
   if ((input.sources ?? []).length > 0) {

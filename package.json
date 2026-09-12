@@ -37,6 +37,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node tests/run-all.mjs",
+    "check": "pnpm build && pnpm test",
     "prepack": "npm run build"
   },
   "peerDependencies": {

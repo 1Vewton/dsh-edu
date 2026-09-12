@@ -9,4 +9,8 @@
 
 await import('./paths.test.js')
 await import('./quiz.test.js')
+await import('./store.test.js')
+await import('./tools.test.js')
+await import('./plugin.test.js')
+await import('./bundle.test.js')
 await import('./mode.test.js')

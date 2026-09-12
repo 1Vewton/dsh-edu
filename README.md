@@ -123,9 +123,25 @@ Manual dispatches from the Actions tab default to `dry_run = true`, which builds
 
 ```sh
 pnpm install
-pnpm build      # src/*.ts -> lib/*.js (lib/ is committed; rebuild and repack after changes)
-pnpm test       # 35 unit tests: grading, paths, course-file rendering, state folding, config
+pnpm check      # = pnpm build + pnpm test (use this after editing src/)
+pnpm test       # 108 tests, ~0.3s, against lib/ — the artifact an install loads
 ```
+
+The suite runs against `lib/`, not `src/`, and that is the point: `lib/` is
+what a profile imports, so either rebuild first (`pnpm check`) or you are testing
+the previous build.
+
+| File | What it pins down |
+| --- | --- |
+| `tests/paths.test.js` | course-name slugification, course file layout, markdown rendering, module checkbox parse/toggle |
+| `tests/quiz.test.js` | grading rules: single/multi-select, open questions, skipped answers, score and pass line, report rendering |
+| `tests/store.test.js` | course-file access: relative-path containment, workspace resolution, sandbox policy, `fs/observed`, append semantics |
+| `tests/tools.test.js` | the three tools end to end: syllabus, progress, notes, quiz log, and every degradation path |
+| `tests/plugin.test.js` | wiring on a real cordis `Context`: services, guidance section, `/edu`, the state machine, the session-log contract |
+| `tests/bundle.test.js` | the bundle contract: patch row, `files`, entry points, and "every runtime bare import is a peer" |
+| `tests/mode.test.js` | configuration validation and `edu/mode` folding |
+
+CI (`.github/workflows/ci.yml`) runs the same thing on ubuntu and windows, Node 22 and 24: `pnpm install --frozen-lockfile` → `pnpm build` plus a check that the committed `lib/` still matches `src/` → `pnpm test`. The Windows leg is not decoration: the plugin resolves workspace-relative paths and writes course files. `.gitattributes` normalizes text to LF so the `lib/` comparison holds on every platform.
 
 Source layout:
 
@@ -136,6 +152,7 @@ src/course.ts  the edu_course / edu_notes tools
 src/quiz.ts    pure grading functions + the edu_quiz tool
 src/store.ts   course-file access through ctx.fs, subject to the sandbox
 src/paths.ts   pure helpers: slugification, file layout, markdown rendering
+tests/         the suites plus tests/helpers.mjs (scratch workspace, fake session/fs/tool registry)
 ```
 
 An installed profile holds a copy of the bundle: after changing the code, `remove` and `add` it again.

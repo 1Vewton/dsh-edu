@@ -70,6 +70,19 @@ describe('syllabus', () => {
     assert.match(syllabus, /\[MIT 18\.06\]\(https:\/\/ocw\.mit\.edu\/18-06\)/)
   })
 
+  it('renders completed modules as checked boxes', () => {
+    const rewritten = renderSyllabus({
+      course: '线性代数',
+      modules: [
+        { id: 'm1', title: '行列式', done: true },
+        { id: 'm2', title: '特征值', done: false },
+      ],
+      date: '2026-02-14',
+    })
+    assert.match(rewritten, /- \[x\] m1 · 行列式/)
+    assert.match(rewritten, /- \[ \] m2 · 特征值/)
+  })
+
   it('round-trips through parseModules and toggleModule', () => {
     assert.deepEqual(parseModules(syllabus).map(m => [m.id, m.done]), [['m1', false], ['m2', false]])
     const checked = toggleModule(syllabus, 'm1', true)

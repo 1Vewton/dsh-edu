@@ -1,0 +1,10 @@
+# Normalize every text file to LF in the repository and in every checkout, so
+# the committed `lib/` build compares byte-equal against a fresh `pnpm build`
+# on any platform (CI and the release workflow both verify that).
+
+* text=auto eol=lf
+
+# Release artifacts and images are binary.
+*.tgz binary
+*.png binary
+*.jpg binary

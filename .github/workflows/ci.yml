@@ -1,0 +1,81 @@
+# Continuous integration: install, rebuild, verify the committed lib/, and run
+# the test suite on both runners the plugin claims to support.
+#
+# The Windows leg is not decoration: the plugin resolves workspace-relative
+# paths and writes course files, and path handling differs enough between
+# platforms to be worth a second runner. The `lib/` freshness check is what
+# keeps the committed build honest, because an installed bundle runs `lib/`, not
+# `src/`.
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: '11.7.0'
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      # `lib/` is committed so that installing the bundle needs no build-script
+      # consent. Bash keeps this step identical on both runners.
+      - name: Build and verify the committed lib/ is current
+        shell: bash
+        run: |
+          pnpm build
+          if ! git diff --quiet -- lib; then
+            echo "::error::lib/ does not match src/ — run 'pnpm build' and commit lib/"
+            git diff --stat -- lib
+            exit 1
+          fi
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test summary
+        shell: bash
+        run: |
+          {
+            echo "### Tests on ${{ matrix.os }} / node ${{ matrix.node }}"
+            echo
+            echo '```'
+            pnpm test 2>&1 | grep -E '^ℹ (tests|suites|pass|fail|duration_ms) ' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
