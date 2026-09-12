@@ -113,7 +113,7 @@ git tag v0.1.1 && git push origin v0.1.1
 
 **One-time setup:** create an npm **Automation** token (npmjs.com → Access Tokens) and add it as the repository secret `NPM_TOKEN` (Settings → Secrets and variables → Actions). Without it the workflow fails loudly at the publish step instead of skipping silently.
 
-The workflow refuses to release: a tag that disagrees with the `package.json` version, a committed `lib/` that no longer matches `src/` (so the published build can never be stale), failing unit tests, or a version already on npm. It publishes with `npm publish --access public --provenance`, so the npm page carries a provenance attestation naming this workflow run as the build, and the GitHub Release carries the same tarball.
+The workflow refuses to release: a tag that disagrees with the `package.json` version, a committed `lib/` that no longer matches `src/` (so the published build can never be stale), or failing unit tests. A version **already on npm is not a failure**: re-running the workflow for the same tag prints a notice, skips the publish, and still finishes the GitHub Release — which is exactly the state a half-completed release leaves behind. The release step is idempotent too: when a release already holds the tag (including a draft you started by hand) it uploads/overwrites the assets instead of failing with "already exists". It publishes with `npm publish --access public --provenance`, so the npm page carries a provenance attestation naming this workflow run as the build, and the GitHub Release carries the same tarballs.
 
 Manual dispatches from the Actions tab default to `dry_run = true`, which builds, tests and packs without publishing.
 

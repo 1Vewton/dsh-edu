@@ -96,13 +96,18 @@ jobs:
             fi
           fi
           if npm view "${PACKAGE_NAME}@${version}" version >/dev/null 2>&1; then
-            echo "::error::${PACKAGE_NAME}@${version} is already published"
-            exit 1
+            # Already on npm is NOT a failure: re-running a release for its own
+            # tag must still be able to finish the GitHub Release, which is
+            # exactly the state a half-completed release leaves behind.
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PACKAGE_NAME}@${version} is already on npm — skipping the publish step"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
           fi
           echo "Releasing ${PACKAGE_NAME}@${version}"
 
       - name: Publish
-        if: github.event_name == 'push' || inputs.dry_run == false
+        if: (github.event_name == 'push' || inputs.dry_run == false) && steps.version.outputs.published == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -124,15 +129,25 @@ jobs:
           cp "dist/${PACKAGE_NAME}-${version}.tgz" "dist/${PACKAGE_NAME}.tgz"
           ls -l dist
 
-      - name: Create the GitHub Release
+      - name: Create or update the GitHub Release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${PACKAGE_NAME} v${{ steps.version.outputs.version }}" \
-            --generate-notes \
-            dist/*.tgz
+          set -x
+          gh --version
+          ls -l dist
+          tag="${GITHUB_REF_NAME}"
+          title="${PACKAGE_NAME} v${{ steps.version.outputs.version }}"
+          # Attaching first covers the states a hand-started release can leave
+          # behind (a draft, or a release already holding this tag); creating is
+          # the fallback when nothing holds the tag yet. Both make a re-run of a
+          # half-finished release idempotent instead of failing on "already exists".
+          if gh release upload "$tag" dist/*.tgz --clobber; then
+            echo "attached the tarballs to the existing release for $tag"
+          else
+            gh release create "$tag" --title "$title" --generate-notes dist/*.tgz
+          fi
 
       - name: Summary
         run: |

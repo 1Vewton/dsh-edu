@@ -113,7 +113,7 @@ git tag v0.1.1 && git push origin v0.1.1
 
 **一次性配置**：在 npm 生成一个 **Automation** token（npmjs.com → Access Tokens），加到仓库 Settings → Secrets and variables → Actions，名字用 `NPM_TOKEN`。没有这个 secret 时 workflow 会在发布步骤明确报错，不会静默跳过。
 
-workflow 会拦住这些情况：tag 与 `package.json` 版本不一致、提交的 `lib/` 与 `src/` 不一致（防止发出去的构建产物是旧的）、单元测试失败、该版本已经在 npm 上存在。发布走 `npm publish --access public --provenance`，所以在 npm 页面能看到该包由这次 GitHub Actions 运行构建的出处证明，GitHub Release 上也会附上同一个 tarball。
+workflow 会拦住这些情况：tag 与 `package.json` 版本不一致、提交的 `lib/` 与 `src/` 不一致（防止发出去的构建产物是旧的）、单元测试失败。**已经发布过的版本不算失败**：对同一个 tag 重新运行会只提示一句「已在 npm 上」并跳过发布，继续把 GitHub Release 补齐——发布挂在一半时正需要这个语义。Release 步骤本身也是幂等的：tag 上已经存在 Release（包括你手动开的 draft）时改为上传/覆盖附件，而不是报 already exists。
 
 也可在 Actions 页面手动 dispatch：默认 `dry_run = true`，只跑构建/测试/打包，不发版。
 
