@@ -12,12 +12,15 @@ import assert from 'node:assert/strict'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { join } from 'node:path'
-import plugin from '../lib/index.js'
+import { load } from 'js-yaml'
+import plugin, { resolveConfig } from '../lib/index.js'
 import { REPO_ROOT } from './helpers.mjs'
 
 const read = relative => readFile(join(REPO_ROOT, relative), 'utf8')
 const manifest = JSON.parse(await read('package.json'))
-const patch = await read('cordis.patch.yml')
+const patchSource = await read('cordis.patch.yml')
+const patch = load(patchSource)
+const rows = patch.flatMap(entry => entry.insert ?? [])
 
 describe('package manifest', () => {
   it('declares the bundle patch and points at a file that exists', async () => {
@@ -29,6 +32,12 @@ describe('package manifest', () => {
     for (const entry of ['lib', 'src', 'cordis.patch.yml', 'README.md', 'README.zh.md', 'LICENSE']) {
       assert.ok(manifest.files.includes(entry), `${entry} is in "files"`)
     }
+  })
+
+  it('declares a helper dependency for the tests, not for the plugin', () => {
+    // js-yaml validates shipped YAML in the suite; the plugin must not need it.
+    assert.ok(manifest.devDependencies['js-yaml'])
+    assert.equal(manifest.dependencies, undefined)
   })
 
   it('points main and exports at the built entry', async () => {
@@ -47,17 +56,23 @@ describe('package manifest', () => {
 })
 
 describe('patch layer', () => {
-  it('inserts one row naming this package', () => {
-    assert.match(patch, /^# dsh bundle patch/m)
-    assert.match(patch, /- insert:/)
-    assert.match(patch, new RegExp(`name: '${manifest.name}'`))
-    assert.match(patch, /id: edu-mode/)
+  it('is one insert of one row naming this package', () => {
+    assert.match(patchSource, /^# dsh bundle patch/m)
+    assert.equal(patch.length, 1)
+    assert.deepEqual(Object.keys(patch[0]), ['insert'])
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].id, 'edu-mode')
+    assert.equal(rows[0].name, manifest.name)
   })
 
-  it('carries the configuration the plugin validates', () => {
-    assert.match(patch, /notesDir: edu-notes/)
-    assert.match(patch, /maxQuizQuestions: 6/)
-    assert.match(patch, /passRatio: 0\.8/)
+  it('ships a configuration the plugin actually accepts', () => {
+    // The same validator the plugin runs at load, over the shipped config: a
+    // typo in cordis.patch.yml fails here rather than in a user's profile.
+    assert.deepEqual(resolveConfig(rows[0].config), {
+      notesDir: 'edu-notes',
+      maxQuizQuestions: 6,
+      passRatio: 0.8,
+    })
   })
 })
 

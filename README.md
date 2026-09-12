@@ -119,6 +119,25 @@ Manual dispatches from the Actions tab default to `dry_run = true`, which builds
 
 > Later, you can move to npm [trusted publishing (OIDC)](https://docs.npmjs.com/trusted-publishers/): once the package exists on npm, add a trusted publisher for `1Vewton` / `dsh-edu` / `release.yml` in the package's Settings → Trusted publishing, then delete `NPM_TOKEN` (the workflow already requests `id-token: write`). The first publish still needs a token, because trusted publishing can only be configured for a package that already exists.
 
+## Listing on dsh-market
+
+[`dsh-market`](https://github.com/dsh-market/dsh-market) — the plugin market inside DSH — **installs only from sources listed in the curated registry**, and that catalog is generated from `data/plugins/*.yml` in [`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) (site: https://awesome-dsh-plugin.com). Getting listed is therefore **one pull request that adds one file**, not a submission to a service.
+
+This repository keeps its copy of that entry at `contrib/awesome-dsh-plugin/1Vewton__dsh-edu.yml`, and `tests/marketplace.test.js` checks it against the registry's stated rules (repository URL, category, description format, and whether the description's claims match the code). To submit, paste it as `data/plugins/1Vewton__dsh-edu.yml` in the registry repository and open the PR; both READMEs there are generated, so **do not edit them by hand**.
+
+The registry's hard requirements, against this repository's current state:
+
+| Requirement | State |
+| --- | --- |
+| `package.json` declares a `dsh.bundle` manifest (what makes it installable) | ✅ |
+| Real, working code — not a placeholder or README-only repo | ✅ |
+| Repository at least **1 day old** (checked automatically) | ⏳ created 2026-09-12 03:56 UTC, so it qualifies after **2026-09-13 04:00 UTC** |
+| The [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic on the repository | ⬜ must be added by hand in the repo's About panel |
+| Description is accurate (reviewers check it against the code) | ✅ it claims only the three tools that exist here |
+| Category fits what the plugin does | `agi` (agent behaviour/mode plugins; a maintainer re-files a near miss rather than rejecting it) |
+
+Recommended, not required: publish to npm (storefronts then show download counts and install faster), or attach a prebuilt tarball to a GitHub Release and point the entry's `tarball:` field at it. Both are ready here — the release workflow attaches `dsh-edu-mode-0.1.0.tgz` **and** a version-free `dsh-edu-mode.tgz`, because `releases/latest/download/<name>` takes the filename literally and a versioned name would 404 after the next release.
+
 ## Development
 
 ```sh

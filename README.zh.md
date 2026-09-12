@@ -119,6 +119,25 @@ workflow 会拦住这些情况：tag 与 `package.json` 版本不一致、提交
 
 > 之后可选升级到 npm 的[可信发布（OIDC）](https://docs.npmjs.com/trusted-publishers/)：包在 npm 上存在后，在包的 Settings → Trusted publishing 里填 `1Vewton` / `dsh-edu` / `release.yml`，之后就能删掉 `NPM_TOKEN`（workflow 已经带了 `id-token: write`）。首次发布仍需要 token，因为可信发布只能在包已存在时配置。
 
+## 上架到 dsh-market
+
+[`dsh-market`](https://github.com/dsh-market/dsh-market)（DSH 里的插件市场）**只允许安装 curated 索引里列出的来源**，索引数据由 [`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 的 `data/plugins/*.yml` 生成（站点 https://awesome-dsh-plugin.com）。所以"上架"就是**一个只加一个文件的 PR**，而不是往某个服务投递。
+
+本仓库的条目副本在 `contrib/awesome-dsh-plugin/1Vewton__dsh-edu.yml`；`tests/marketplace.test.js` 会按索引写明的要求校验它（仓库地址、分类、描述格式，以及描述里的声明是否与代码一致）。提交时把它原样粘成 registry 仓库里的 `data/plugins/1Vewton__dsh-edu.yml` 再开 PR；那边的两个 README 由脚本生成，**不要手改**。
+
+收录的硬性要求，对着本仓库的现状：
+
+| 要求 | 状态 |
+| --- | --- |
+| `package.json` 声明 `dsh.bundle`（决定能否用 `dsh plugin add` 装） | ✅ |
+| 有真实可用的代码，不是占位或纯 README 仓库 | ✅ |
+| 仓库**创建满 1 天**（CI 自动检查） | ⏳ 建于 2026-09-12 03:56 UTC，**2026-09-13 04:00 UTC 之后**才达标 |
+| 仓库加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic | ⬜ 需在仓库 About 里手动加 |
+| 描述属实（评审会对着代码逐条核） | ✅ 条目只声明仓库里确实存在的三个工具 |
+| 分类贴合插件实际做的事 | `agi`（agent 行为/模式类；不贴切的话维护者会直接改，不会打回） |
+
+推荐但非必需：发布到 npm（市场据此展示下载量、安装更快），或在 GitHub Release 上挂预构建 tarball 供条目的 `tarball:` 字段引用。两者都已就绪——发布工作流会同时挂上 `dsh-edu-mode-0.1.0.tgz` 与**不带版本号**的 `dsh-edu-mode.tgz`（`releases/latest/download/<文件名>` 按字面取文件名，带版本号会在下一次发版后 404）。
+
 ## 开发
 
 ```sh

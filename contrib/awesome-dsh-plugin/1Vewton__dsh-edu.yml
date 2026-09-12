@@ -1,0 +1,24 @@
+# Submission entry for the curated registry behind dsh-market.
+#
+# dsh-market (the plugin market inside DSH) installs ONLY from sources listed in
+# https://awesome-dsh-plugin.com/plugins.json, and that catalog is generated from
+# `data/plugins/*.yml` in https://github.com/awesome-dsh-plugin/awesome-dsh-plugin.
+# Getting listed is one pull request adding exactly one file, named after the
+# repo: `data/plugins/<owner>__<repo>.yml`.
+#
+# This file is the local copy of that entry, kept here so later edits have one
+# source of truth. `tests/marketplace.test.js` checks it against the registry's
+# stated requirements, and against package.json, so the two cannot drift.
+#
+# Paste this verbatim as `data/plugins/1Vewton__dsh-edu.yml` in that repository.
+
+url: https://github.com/1Vewton/dsh-edu
+name: 1Vewton/dsh-edu
+category: agi
+description:
+  en: 'Education mode for DeepSeek Harness: a switchable session mode that has the agent teach a course end to end, with three tools that keep the syllabus, write the class notes, and quiz the learner with automatically graded choice questions.'
+  zh: 'DeepSeek Harness 的教育模式：一个可切换的会话模式，让模型把一门课从资料检索讲到测验复盘，并用三个工具维护课程大纲、写课堂笔记、出题检查掌握情况（选择题自动判分）。'
+# Prebuilt install path with no build-approval step. The asset name is
+# deliberately version-free: `releases/latest/download/<name>` takes the
+# filename literally, so a versioned name would rot at the next release.
+tarball: https://github.com/1Vewton/dsh-edu/releases/latest/download/dsh-edu-mode.tgz

@@ -116,6 +116,13 @@ jobs:
         run: |
           mkdir -p dist
           npm pack --pack-destination dist
+          # Storefronts (dsh-market and the curated registry) point at a
+          # VERSION-FREE asset name: `releases/latest/download/<name>` resolves
+          # `latest` at request time but takes the filename literally, so a
+          # versioned asset would 404 the moment the next release ships.
+          version=$(node -p "require('./package.json').version")
+          cp "dist/${PACKAGE_NAME}-${version}.tgz" "dist/${PACKAGE_NAME}.tgz"
+          ls -l dist
 
       - name: Create the GitHub Release
         if: github.event_name == 'push'
