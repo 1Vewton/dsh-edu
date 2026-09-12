@@ -21,6 +21,10 @@ on:
         description: Build, test and pack without publishing
         type: boolean
         default: true
+      tag:
+        description: 'Tag to finish releasing, e.g. v0.1.0 (leave empty to only build and pack)'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -33,6 +37,13 @@ env:
   NODE_VERSION: '24'
   PNPM_VERSION: '11.7.0'
   PACKAGE_NAME: 'dsh-edu-mode'
+  # A tag push releases that tag; a manual dispatch can name one instead, which
+  # is how a release that published to npm but failed before creating its GitHub
+  # Release gets finished — without moving the tag, and without replaying the
+  # workflow file as it existed inside that tag. Every input is read through
+  # `github.event.inputs` (empty on a push) rather than the `inputs` context,
+  # which is only guaranteed to resolve for a dispatch.
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   release:
@@ -85,13 +96,16 @@ jobs:
 
       - name: Check the release version
         id: version
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [ "${GITHUB_EVENT_NAME}" = 'push' ]; then
-            tag="${GITHUB_REF_NAME#v}"
+          # Only a run that names a tag has a tag/version agreement to check.
+          if [ "${GITHUB_EVENT_NAME}" = 'push' ] || [ -n "${INPUT_TAG}" ]; then
+            tag="${TAG#v}"
             if [ "$tag" != "$version" ]; then
-              echo "::error::tag v$tag does not match package.json version $version"
+              echo "::error::tag ${TAG} does not match package.json version $version"
               exit 1
             fi
           fi
@@ -107,7 +121,7 @@ jobs:
           echo "Releasing ${PACKAGE_NAME}@${version}"
 
       - name: Publish
-        if: (github.event_name == 'push' || inputs.dry_run == false) && steps.version.outputs.published == 'false'
+        if: (github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true') && steps.version.outputs.published == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -130,32 +144,35 @@ jobs:
           ls -l dist
 
       - name: Create or update the GitHub Release
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event.inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -x
           gh --version
           ls -l dist
-          tag="${GITHUB_REF_NAME}"
           title="${PACKAGE_NAME} v${{ steps.version.outputs.version }}"
-          # Attaching first covers the states a hand-started release can leave
-          # behind (a draft, or a release already holding this tag); creating is
-          # the fallback when nothing holds the tag yet. Both make a re-run of a
-          # half-finished release idempotent instead of failing on "already exists".
-          if gh release upload "$tag" dist/*.tgz --clobber; then
-            echo "attached the tarballs to the existing release for $tag"
+          # Attaching first covers every state a hand-started or half-finished
+          # release can leave behind (a draft, or a release already holding this
+          # tag); creating is the fallback when nothing holds the tag yet. Both
+          # make a re-run idempotent instead of failing on "already exists".
+          if gh release upload "${TAG}" dist/*.tgz --clobber; then
+            echo "attached the tarballs to the existing release for ${TAG}"
           else
-            gh release create "$tag" --title "$title" --generate-notes dist/*.tgz
+            gh release create "${TAG}" --title "$title" --generate-notes dist/*.tgz
           fi
 
       - name: Summary
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
           {
             echo "### ${PACKAGE_NAME}@${{ steps.version.outputs.version }}"
             echo
             if [ "${{ github.event_name }}" = 'push' ]; then
               echo "Published to npm and released on GitHub."
+            elif [ -n "${INPUT_TAG}" ]; then
+              echo "Finished the release for ${INPUT_TAG}. npm publish only runs on a tag push."
             else
               echo "Dry run: nothing was published. Re-dispatch with \`dry_run\` off, or push a \`v*\` tag."
             fi
