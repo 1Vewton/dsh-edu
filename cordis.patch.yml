@@ -1,0 +1,15 @@
+# dsh bundle patch: applied when a profile lists `dsh-edu-mode` in
+# `dsh.profile.bundles`. The row inserts education mode into the composed tree;
+# `config` is validated at load, so a typo fails loudly instead of silently
+# falling back to a default.
+- insert:
+    - id: edu-mode
+      name: 'dsh-edu-mode'
+      config:
+        # Workspace-relative directory course files are written under:
+        #   <notesDir>/<course>/{syllabus.md,notes.md,quizzes.md}
+        notesDir: edu-notes
+        # Hard ceiling on how many questions one edu_quiz call may ask.
+        maxQuizQuestions: 6
+        # Default pass ratio for edu_quiz (fraction of the auto-graded score).
+        passRatio: 0.8
